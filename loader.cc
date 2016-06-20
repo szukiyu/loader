@@ -8,7 +8,18 @@
 
 using namespace tensorflow;
 
-void sample_batch(double X_train[30], double y_train[30], int batch_size,int num_steps){
+void sample_batch(std::vector<std::vector<double>> X_train , std::vector<double> y_train, int batch_size,int num_steps){
+
+  N = X_train.size;
+  len = X_train[i].size();
+  //ran  = rand(N-batch_size,1)
+  //ind_N = np.arange(ran,ran+batch_size)
+  //ind_start = 0 //# ysuzuki added 2016/06/03                                                                                
+  //#form batch                                                                                                             
+  //X_batch = X_train[ind_N,ind_start:ind_start+num_steps]
+  //y_batch = y_train[ind_N]
+  //return X_batch,y_batch
+
 }
 
 std::vector<std::vector<string>> load_dataset(string filename){
