@@ -7,6 +7,8 @@
 #include <vector>
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <iterator>
+#include <memory>
 
 //#include "batch.cc"
 
@@ -88,18 +90,19 @@ int main(int argc, char* argv[]) {
 
   std::vector<std::vector<double>> batchx = sample_batch(X_test_norm, y_test_norm, 16, 15);
 
+  double d[(batchx.size())*(batchx[0].size())];
+
   for(unsigned int i = 0; i < batchx.size(); ++i){
     for(unsigned int j = 0; j < batchx[i].size(); ++j){
-      std::cout<< batchx[i][j] <<std::endl;
+      d[i*(batchx.size()) + j] =  batchx[i][j];
     }
     std::cout << i << std::endl;
   }
 
-  std::cout<< batchx.size() <<std::endl;
-  std::cout<< batchx[0].size() <<std::endl;
 
-
-  Eigen::Vector3d A = Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> >(&(batchx[0][0]), 16,16);
+  //std::unique_ptr<ValueType[]> array1d(new ValueType [rows*cols]);
+  //internal::matrix_to_array1d(matrix, array1d.get());
+  Eigen::MatrixXd A = Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> >(&(d[0]), 16, 16);
 
   std::cout << A << std::endl;
 
@@ -133,10 +136,10 @@ int main(int argc, char* argv[]) {
 
   // Setup inputs and outputs:
 
-  Tensor a(DT_FLOAT, TensorShape({15,16}));
+  Tensor a(DT_FLOAT, TensorShape({16,16}));
   //a.scalar<float>()() = 3.0;
   a.flat_inner_dims<float>().setRandom();
-  //a.flat_inner_dims<float>() = batchx;
+  a.flat_inner_dims<float>() = A;
   //std::cout<<"a.matrix<T>() is "<< a.shaped<double, 2>({4, 15})<<std::endl;
   std::cout<<"a.flat_inner_dims<float>() is "<< a.flat_inner_dims<float>() <<std::endl;
   //std::cout<<"a.vec<T>() is "<< a.vec<float>()<<std::endl;
