@@ -5,6 +5,10 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+
+//#include "batch.cc"
 
 using namespace tensorflow;
 
@@ -39,7 +43,7 @@ std::vector<std::vector<string>> load_dataset(string filename){
       inner.push_back(str.substr(0, p));  
       str = str.substr(p+1);                                                                                                       
     }
-    inner.push_back(str);                                                                                               
+    inner.push_back(str);                                                                       
     values.push_back(inner);
   }                           
 
@@ -47,49 +51,58 @@ std::vector<std::vector<string>> load_dataset(string filename){
 }
 
 int main(int argc, char* argv[]) {
-  
-  std::vector<std::vector<string>> testvalues;                                                       
+
+  std::vector<std::vector<string>> testvalues;                                                
   testvalues = load_dataset("data/TEST_batch1000");
-  std::vector<std::vector<string>> trainvalues;                                                      
+  std::vector<std::vector<string>> trainvalues;                                               
   trainvalues = load_dataset("data/TEST_batch1000");
-
   std::stringstream ss;
-  double v;
+  double v = 0.0;
+  std::string st;
+  int linenum = 1000;
 
-  std::vector<std::vector<double>> X_train_norm(1000), X_test_norm(1000);
-  std::vector<double> y_train_norm(1000), y_test_norm(1000);
+  std::vector<std::vector<double>> X_train_norm(linenum), X_test_norm(linenum);
+  std::vector<double> y_train_norm(linenum), y_test_norm(linenum);
+
 
   for(unsigned int i = 0; i < trainvalues.size(); ++i){
     for(unsigned int j = 0; j < trainvalues[i].size(); ++j){
-
-      ss << trainvalues[i][j];
-      ss >> v;
-
+      v = std::stod(trainvalues[i][j]);
       if(j != 0)
 	X_train_norm[i].push_back(v);
       else
 	y_train_norm.push_back(v);
-
     }
   }
 
   for(unsigned int i = 0; i < testvalues.size(); ++i){
     for(unsigned int j = 0; j < testvalues[i].size(); ++j){
-      ss << testvalues[i][j];
-      ss >> v;
-      if(j != 0)
+      v = std::stod(trainvalues[i][j]);
+      if(j != 0){
 	X_test_norm[i].push_back(v);
+      }
       else
 	y_test_norm.push_back(v);
     }
   }
 
-  std::vector<std::vector<double>> batchx = sample_batch(X_test_norm, y_test_norm, 32, 30);
+  std::vector<std::vector<double>> batchx = sample_batch(X_test_norm, y_test_norm, 16, 15);
+
   for(unsigned int i = 0; i < batchx.size(); ++i){
     for(unsigned int j = 0; j < batchx[i].size(); ++j){
-      //std::cout << batchx[i][j];
+      std::cout<< batchx[i][j] <<std::endl;
     }
+    std::cout << i << std::endl;
   }
+
+  std::cout<< batchx.size() <<std::endl;
+  std::cout<< batchx[0].size() <<std::endl;
+
+
+  Eigen::Vector3d A = Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> >(&(batchx[0][0]), 16,16);
+
+  std::cout << A << std::endl;
+
 
   // Initialize a tensorflow session
   Session* session;
@@ -99,13 +112,13 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-
   // Read in the protobuf graph we exported
   // (The path seems to be relative to the cwd. Keep this in mind
   // when using `bazel run` since the cwd isn't where you call
   // `bazel run` but from inside a temp folder.)
   GraphDef graph_def;
-  status = ReadBinaryProto(Env::Default(), "models/graph.pb", &graph_def);
+
+  status = ReadBinaryProto(Env::Default(), "/home/suzuki/LSTM_tsc-master/models/output_graph.pb", &graph_def);
   if (!status.ok()) {
     std::cout << status.ToString() << "\n";
     return 1;
@@ -120,52 +133,31 @@ int main(int argc, char* argv[]) {
 
   // Setup inputs and outputs:
 
-  // Our graph doesn't require any inputs, since it specifies default values,
-  // but we'll change an input to demonstrate.
-  //Tensor a(DT_FLOAT, TensorShape());
-
-  /*
-  Tensor a_temp;
-  // Initialize `a_temp`...
-
-  const auto& a_tensor = a_temp.shaped<float, 3>(
-    {4, 4, 4});
-
-  Eigen::array<ptrdiff_t, 3> patch_dims;
-  patch_dims[0] = 1;
-  patch_dims[1] = 2;
-  patch_dims[2] = 3;
-
-  const auto& patch_expr = a_tensor.extract_patches(patch_dims);
-  std::cout<<"ee"<<std::endl;
-  Eigen::Tensor<float, 4, Eigen::RowMajor> patch = patch_expr.eval();
-  std::cout<<"patch="<<patch<<std::endl;
-  */
-
-  Tensor a(DT_FLOAT, TensorShape({32,30}));
+  Tensor a(DT_FLOAT, TensorShape({15,16}));
   //a.scalar<float>()() = 3.0;
- a.flat_inner_dims<float>().setRandom();
+  a.flat_inner_dims<float>().setRandom();
+  //a.flat_inner_dims<float>() = batchx;
   //std::cout<<"a.matrix<T>() is "<< a.shaped<double, 2>({4, 15})<<std::endl;
+  std::cout<<"a.flat_inner_dims<float>() is "<< a.flat_inner_dims<float>() <<std::endl;
+  //std::cout<<"a.vec<T>() is "<< a.vec<float>()<<std::endl;
 
- Tensor b(DT_FLOAT, TensorShape({30}));
- b.flat<float>().setRandom();
- //std::cout<<"b.matrix<double>() is "<< b.matrix<double>()<<std::endl;
+  Tensor b(DT_INT64, TensorShape({15}));
+  b.flat<int64>().setRandom();
+  //std::cout<<"b.matrix<double>() is "<< b.matrix<double>()<<std::endl;
 
- Tensor c(DT_FLOAT, TensorShape());
- c.scalar<float>()() = 0.5;
+  Tensor c(DT_FLOAT, TensorShape());
+  c.scalar<float>()() = 0.5;
 
- std::vector<std::pair<string, tensorflow::Tensor>> inputs = {
-   { "input_data", a },
-   { "Targets", b },
-   { "Drop_out_keep_prob", c },
- };
+  std::vector<std::pair<string, tensorflow::Tensor>> inputs = {
+    { "input_data", a },
+    { "Targets", b },
+    { "Drop_out_keep_prob", c },
+  };
   // The session will initialize the outputs
   std::vector<tensorflow::Tensor> outputs;
 
-  //auto operationStatus = session->Run(inputs, {"init_all_vars_op2"}, {}, &outputs);
-  //status = session->Run(inputs, {}, {"init_all_vars_op2"}, &outputs);
-  Run the session, evaluating our "c" operation from the graph
-  status = session->Run(inputs, {"Softmax/costvalue"}, {}, &outputs);
+  //Run the session, evaluating our "c" operation from the graph
+    status = session->Run(inputs, {"Softmax/costvalue"}, {}, &outputs);
   //status = session->Run(input_data: X_batch,targets:y_batch, initial_state:state,keep_prob:1});
 
   if (!status.ok()) {
@@ -181,7 +173,6 @@ int main(int argc, char* argv[]) {
   // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/public/tensor.h)
 
   // Print the results
-  //std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
   std::cout << output_c() << "\n"; // 30
 
   // Free any resources used by the session
