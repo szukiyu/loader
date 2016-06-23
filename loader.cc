@@ -12,23 +12,28 @@
 
 //#include "batch.cc"
 
+#include <stdio.h>
+
 using namespace tensorflow;
 
-std::vector<std::vector<double>> sample_batch(std::vector<std::vector<double>> X_train , std::vector<double> y_train, int batch_size,int num_steps){
-  int N = X_train.size();
-  //int len = X_train[0].size();
-  std::vector<std::vector<double>> X_batch(batch_size);
+int b_size = 15;
+int n_step = 16;
+
+void sample(std::vector<std::vector<double>> &x, std::vector<double> &y, std::vector<std::vector<double>> &x_new, std::vector<int> &y_new, int batch_size, int num_steps);
+
+void sample(std::vector<std::vector<double>> &x, std::vector<double> &y, std::vector<std::vector<double>> &x_new, std::vector<int> &y_new, int batch_size, int num_steps)
+{
+  int N = x.size();
   int ran  =  (int)(rand()*(N-batch_size+1.0)/(1.0+RAND_MAX));
-  int ind_N[batch_size];
-  
   for(int i=0; i < batch_size; ++i){
-    X_batch[i].push_back(X_train[ran+i][0]);
     for(int j=0; j < num_steps; ++j){
-      X_batch[i].push_back(X_train[ran+i][j+1]);
+      x_new[i].push_back(x[ran+i][j]);
     } 
   }
 
-  return X_batch;
+  for(int i=0; i < batch_size; ++i){
+    y_new.push_back((int)y[ran+i]);
+  }
 
 }
 
@@ -52,34 +57,21 @@ std::vector<std::vector<string>> load_dataset(string filename){
   return values;
 }
 
-int main(int argc, char* argv[]) {
+int main(void) {
 
   std::vector<std::vector<string>> testvalues;                                                
   testvalues = load_dataset("data/TEST_batch1000");
-  std::vector<std::vector<string>> trainvalues;                                               
-  trainvalues = load_dataset("data/TEST_batch1000");
   std::stringstream ss;
   double v = 0.0;
   std::string st;
   int linenum = 1000;
 
-  std::vector<std::vector<double>> X_train_norm(linenum), X_test_norm(linenum);
-  std::vector<double> y_train_norm(linenum), y_test_norm(linenum);
-
-
-  for(unsigned int i = 0; i < trainvalues.size(); ++i){
-    for(unsigned int j = 0; j < trainvalues[i].size(); ++j){
-      v = std::stod(trainvalues[i][j]);
-      if(j != 0)
-	X_train_norm[i].push_back(v);
-      else
-	y_train_norm.push_back(v);
-    }
-  }
+  std::vector<std::vector<double>> X_test_norm(linenum);
+  std::vector<double> y_test_norm(linenum);
 
   for(unsigned int i = 0; i < testvalues.size(); ++i){
     for(unsigned int j = 0; j < testvalues[i].size(); ++j){
-      v = std::stod(trainvalues[i][j]);
+      v = std::stod(testvalues[i][j]);
       if(j != 0){
 	X_test_norm[i].push_back(v);
       }
@@ -87,24 +79,6 @@ int main(int argc, char* argv[]) {
 	y_test_norm.push_back(v);
     }
   }
-
-  std::vector<std::vector<double>> batchx = sample_batch(X_test_norm, y_test_norm, 16, 15);
-
-  double d[(batchx.size())*(batchx[0].size())];
-
-  for(unsigned int i = 0; i < batchx.size(); ++i){
-    for(unsigned int j = 0; j < batchx[i].size(); ++j){
-      d[i*(batchx.size()) + j] =  batchx[i][j];
-    }
-    std::cout << i << std::endl;
-  }
-
-
-  //std::unique_ptr<ValueType[]> array1d(new ValueType [rows*cols]);
-  //internal::matrix_to_array1d(matrix, array1d.get());
-  Eigen::MatrixXd A = Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> >(&(d[0]), 16, 16);
-
-  std::cout << A << std::endl;
 
 
   // Initialize a tensorflow session
@@ -135,18 +109,23 @@ int main(int argc, char* argv[]) {
   }
 
   // Setup inputs and outputs:
+  std::vector<std::vector<double>> batchx(b_size);
+  std::vector<int> batchy;
+  
+  sample(X_test_norm, y_test_norm, batchx, batchy, b_size, n_step);
 
-  Tensor a(DT_FLOAT, TensorShape({16,16}));
-  //a.scalar<float>()() = 3.0;
-  a.flat_inner_dims<float>().setRandom();
-  a.flat_inner_dims<float>() = A;
-  //std::cout<<"a.matrix<T>() is "<< a.shaped<double, 2>({4, 15})<<std::endl;
-  std::cout<<"a.flat_inner_dims<float>() is "<< a.flat_inner_dims<float>() <<std::endl;
-  //std::cout<<"a.vec<T>() is "<< a.vec<float>()<<std::endl;
+  Tensor a(DT_FLOAT, TensorShape({b_size,n_step}));
+  for(unsigned int i = 0; i < batchx.size(); ++i){
+    for(unsigned int j = 0; j < batchx[i].size(); ++j){
+      a.matrix<float>()(i,j) = batchx[i][j];
+    }
+  }
 
-  Tensor b(DT_INT64, TensorShape({15}));
-  b.flat<int64>().setRandom();
-  //std::cout<<"b.matrix<double>() is "<< b.matrix<double>()<<std::endl;
+  Tensor b(DT_INT64, TensorShape({b_size}));
+  b.flat<int64>().setZero();
+  for(unsigned int i = 0; i < batchy.size(); ++i){
+    b.tensor<int64,1>()(i) = batchy[i];
+  }
 
   Tensor c(DT_FLOAT, TensorShape());
   c.scalar<float>()() = 0.5;
@@ -156,29 +135,30 @@ int main(int argc, char* argv[]) {
     { "Targets", b },
     { "Drop_out_keep_prob", c },
   };
+
   // The session will initialize the outputs
   std::vector<tensorflow::Tensor> outputs;
 
-  //Run the session, evaluating our "c" operation from the graph
-    status = session->Run(inputs, {"Softmax/costvalue"}, {}, &outputs);
-  //status = session->Run(input_data: X_batch,targets:y_batch, initial_state:state,keep_prob:1});
+  //Run the session, evaluating our "costvalue, accuracy" operation from the graph
+  status = session->Run(inputs, {"Softmax/costvalue","Softmax/accu"}, {}, &outputs);
 
   if (!status.ok()) {
     std::cout << status.ToString() << "\n";
     return 1;
   }
 
-  // Grab the first output (we only evaluated one graph node: "c")
-  // and convert the node to a scalar representation.
-  auto output_c = outputs[0].scalar<float>();
+  // convert the node to a scalar representation.
+  auto output_cost = outputs[0].scalar<float>();
+  auto output_accuracy = outputs[1].scalar<float>();
 
   // (There are similar methods for vectors and matrices here:
-  // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/public/tensor.h)
 
   // Print the results
-  std::cout << output_c() << "\n"; // 30
+  std::cout << output_cost() << "\n"; // 30
+  std::cout << output_accuracy() << "\n"; // 30
 
   // Free any resources used by the session
   session->Close();
   return 0;
 }
+
