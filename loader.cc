@@ -2,39 +2,32 @@
 #include "tensorflow/core/platform/env.h"
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <Eigen/Core>
-#include <Eigen/Geometry>
 #include <iterator>
 #include <memory>
-
-//#include "batch.cc"
-
 #include <stdio.h>
 
 using namespace tensorflow;
-
-int b_size = 15;
-int n_step = 16;
 
 void sample(std::vector<std::vector<double>> &x, std::vector<double> &y, std::vector<std::vector<double>> &x_new, std::vector<int> &y_new, int batch_size, int num_steps);
 
 void sample(std::vector<std::vector<double>> &x, std::vector<double> &y, std::vector<std::vector<double>> &x_new, std::vector<int> &y_new, int batch_size, int num_steps)
 {
   int N = x.size();
-  int ran  =  (int)(rand()*(N-batch_size+1.0)/(1.0+RAND_MAX));
+  //int ran  =  (int)(rand()*(N-batch_size+1.0)/(1.0+RAND_MAX));
+  int ran = 0; //for comparison with Python API
   for(int i=0; i < batch_size; ++i){
     for(int j=0; j < num_steps; ++j){
-      x_new[i].push_back(x[ran+i][j]);
+      x_new[i].push_back(x[ran+i+(N/2)][j]);
     } 
   }
 
   for(int i=0; i < batch_size; ++i){
-    y_new.push_back((int)y[ran+i]);
+    y_new.push_back((int)y[ran+i+(N/2)]);
   }
-
 }
 
 std::vector<std::vector<string>> load_dataset(string filename){
@@ -59,12 +52,15 @@ std::vector<std::vector<string>> load_dataset(string filename){
 
 int main(void) {
 
+  int b_size = 15;
+  int n_step = 16;
+
   std::vector<std::vector<string>> testvalues;                                                
-  testvalues = load_dataset("data/TEST_batch1000");
+  testvalues = load_dataset("/home/suzuki/LSTM_tsc-master/data/TEST_batch2000");
   std::stringstream ss;
   double v = 0.0;
   std::string st;
-  int linenum = 1000;
+  int linenum = testvalues.size();
 
   std::vector<std::vector<double>> X_test_norm(linenum);
   std::vector<double> y_test_norm(linenum);
@@ -90,11 +86,7 @@ int main(void) {
   }
 
   // Read in the protobuf graph we exported
-  // (The path seems to be relative to the cwd. Keep this in mind
-  // when using `bazel run` since the cwd isn't where you call
-  // `bazel run` but from inside a temp folder.)
   GraphDef graph_def;
-
   status = ReadBinaryProto(Env::Default(), "/home/suzuki/LSTM_tsc-master/models/output_graph.pb", &graph_def);
   if (!status.ok()) {
     std::cout << status.ToString() << "\n";
@@ -128,7 +120,7 @@ int main(void) {
   }
 
   Tensor c(DT_FLOAT, TensorShape());
-  c.scalar<float>()() = 0.5;
+  c.scalar<float>()() = 1.0;
 
   std::vector<std::pair<string, tensorflow::Tensor>> inputs = {
     { "input_data", a },
@@ -140,7 +132,7 @@ int main(void) {
   std::vector<tensorflow::Tensor> outputs;
 
   //Run the session, evaluating our "costvalue, accuracy" operation from the graph
-  status = session->Run(inputs, {"Softmax/costvalue","Softmax/accu"}, {}, &outputs);
+  status = session->Run(inputs, {"Softmax/costvalue","Softmax/accu","Softmax/Sparse_softmax","Softmax_params/softmax_w"}, {}, &outputs);
 
   if (!status.ok()) {
     std::cout << status.ToString() << "\n";
@@ -150,12 +142,22 @@ int main(void) {
   // convert the node to a scalar representation.
   auto output_cost = outputs[0].scalar<float>();
   auto output_accuracy = outputs[1].scalar<float>();
+  auto output_Sparse_softmax = outputs[2].tensor<float,1>();
+  auto output_softmax_w = outputs[3].matrix<float>();
+
+  float cost = output_cost(); 
 
   // (There are similar methods for vectors and matrices here:
 
   // Print the results
-  std::cout << output_cost() << "\n"; // 30
-  std::cout << output_accuracy() << "\n"; // 30
+  for(unsigned int i = 0; i < 13; ++i){
+    //std::cout <<  "output_softmax_w(i,0) = " <<output_softmax_w(i,0) <<  ", output_softmax_w(i,1) = " <<output_softmax_w(i,1) << "\n";
+  }
+  for(unsigned int i = 0; i < 15; ++i){
+    //std::cout <<  "output_Sparse_softmax(i) = " <<output_Sparse_softmax(i) << "\n";
+  }
+  std::cout << "output_cost() = " << std::setprecision(3) << cost/(b_size) << "\n"; 
+  std::cout << "output_accuracy() = " << std::setprecision(2) << output_accuracy()  << "\n"; 
 
   // Free any resources used by the session
   session->Close();
