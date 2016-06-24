@@ -30,11 +30,14 @@ void sample(std::vector<std::vector<double>> &x, std::vector<double> &y, std::ve
   }
 }
 
-std::vector<std::vector<string>> load_dataset(string filename){
+void load_dataset(string filename, std::vector<std::vector<double>> &X_test_norm, std::vector<double> &y_test_norm);
+
+void load_dataset(string filename, std::vector<std::vector<double>> &X_test_norm, std::vector<double> &y_test_norm){
+
   string str;
   int p;
-  std::stringstream ss;                                                                                                    
   std::vector<std::vector<string>> values;
+
   std::ifstream file(filename);
 
   while(getline(file, str)){
@@ -43,31 +46,16 @@ std::vector<std::vector<string>> load_dataset(string filename){
       inner.push_back(str.substr(0, p));  
       str = str.substr(p+1);                                                                                                       
     }
-    inner.push_back(str);                                                                       
+    inner.push_back(str);                     
     values.push_back(inner);
   }                           
 
-  return values;
-}
-
-int main(void) {
-
-  int b_size = 15;
-  int n_step = 16;
-
-  std::vector<std::vector<string>> testvalues;                                                
-  testvalues = load_dataset("/home/suzuki/LSTM_tsc-master/data/TEST_batch2000");
-  std::stringstream ss;
   double v = 0.0;
-  std::string st;
-  int linenum = testvalues.size();
+  X_test_norm.resize(values.size());
 
-  std::vector<std::vector<double>> X_test_norm(linenum);
-  std::vector<double> y_test_norm(linenum);
-
-  for(unsigned int i = 0; i < testvalues.size(); ++i){
-    for(unsigned int j = 0; j < testvalues[i].size(); ++j){
-      v = std::stod(testvalues[i][j]);
+  for(unsigned int i = 0; i < values.size(); ++i){
+    for(unsigned int j = 0; j < values[i].size(); ++j){
+      v = std::stod(values[i][j]);
       if(j != 0){
 	X_test_norm[i].push_back(v);
       }
@@ -75,6 +63,31 @@ int main(void) {
 	y_test_norm.push_back(v);
     }
   }
+
+  /*
+  for (std::vector< std::vector<int>* >::iterator i = values.begin(); i != values.end(); i++) {
+    for (std::vector<int>::iterator j = (*i).begin(); j != (*i).end(); j++) {
+      std::cout << *j << std::endl;
+      v = std::stod(values[i][j]);
+      if(j != 0){
+	X_test_norm[i].push_back(v);
+      }
+      else
+	y_test_norm.push_back(v);
+    }
+  }
+  */
+}
+
+int main(void) {
+
+  int b_size = 15; // number of minibatch
+  int n_step = 16; // size of minibatch
+
+  std::vector<std::vector<double>> X_test_norm;
+  std::vector<double> y_test_norm;
+
+  load_dataset("/home/suzuki/LSTM_tsc-master/data/TEST_batch2000", X_test_norm, y_test_norm);
 
 
   // Initialize a tensorflow session
@@ -127,7 +140,7 @@ int main(void) {
     { "Targets", b },
     { "Drop_out_keep_prob", c },
   };
-
+  
   // The session will initialize the outputs
   std::vector<tensorflow::Tensor> outputs;
 
@@ -150,12 +163,16 @@ int main(void) {
   // (There are similar methods for vectors and matrices here:
 
   // Print the results
-  for(unsigned int i = 0; i < 13; ++i){
-    //std::cout <<  "output_softmax_w(i,0) = " <<output_softmax_w(i,0) <<  ", output_softmax_w(i,1) = " <<output_softmax_w(i,1) << "\n";
+  for(unsigned int i = 0; i < output_softmax_w.size(); ++i){
+    std::cout <<  "[" <<output_softmax_w(i,0) <<  "," <<output_softmax_w(i,1) <<"]"<< "\n";
   }
-  for(unsigned int i = 0; i < 15; ++i){
-    //std::cout <<  "output_Sparse_softmax(i) = " <<output_Sparse_softmax(i) << "\n";
+
+  std::cout <<"[";
+  for(unsigned int i = 0; i < output_Sparse_softmax.size(); ++i){
+    std::cout << output_Sparse_softmax(i) << " ";
   }
+  std::cout <<"]"<<std::endl;
+
   std::cout << "output_cost() = " << std::setprecision(3) << cost/(b_size) << "\n"; 
   std::cout << "output_accuracy() = " << std::setprecision(2) << output_accuracy()  << "\n"; 
 
