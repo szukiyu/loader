@@ -1,7 +1,10 @@
-cc_binary(
-	  name = "loader",
-	  srcs = ["loader.cc"],
+cc_library(
+    name = "loader",
+    srcs = ["loader.cc"],
+    hdrs = ["loader.h"],
+    linkstatic = 0,
     deps = [
-	    "//tensorflow/core:tensorflow",
-    ]
-	  )
+        "//tensorflow/core:tensorflow",
+    ],
+)
+
